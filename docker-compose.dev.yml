@@ -1,0 +1,16 @@
+services:
+  api:
+    command: npm run dev:api
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - /usr/src/app/node_modules
+      - ./sessions:/usr/src/app/sessions
+
+  worker:
+    command: npm run dev:worker
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./tsconfig.json:/usr/src/app/tsconfig.json
+      - /usr/src/app/node_modules
+      - ./sessions:/usr/src/app/sessions
