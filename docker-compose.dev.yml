@@ -1,5 +1,9 @@
 services:
   api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
     command: npm run dev:api
     volumes:
       - ./src:/usr/src/app/src
@@ -8,6 +12,10 @@ services:
       - ./sessions:/usr/src/app/sessions
 
   worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
     command: npm run dev:worker
     volumes:
       - ./src:/usr/src/app/src
