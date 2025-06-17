@@ -18,6 +18,7 @@ A robust, scalable backend system designed to automate high-volume, targeted mes
 -   **Multi-Session Support:** Manage multiple distinct WhatsApp accounts (e.g., for marketing, alerts) simultaneously.
 -   **Interactive API Documentation:** Includes a built-in Swagger UI for easy API exploration and testing.
 -   **Job Queue Monitoring:** A pre-configured Bull Board dashboard provides visibility into the message queue.
+-   **Excel Recipient Import:** Quickly kick off blasts by uploading an Excel (.xlsx) file containing your own recipient list.
 
 ## 🏛️ System Architecture
 
@@ -48,6 +49,8 @@ The application is built as a single Node.js/TypeScript project but runs as two 
 -   **Job Queue:** BullMQ
 -   **Database/Cache:** Redis
 -   **Real-time Communication:** WebSockets (`ws`)
+-   **File Uploads:** Multer
+-   **Excel Parsing:** XLSX (`sheetjs`)
 -   **Containerization:** Docker, Docker Compose
 -   **API Documentation:** Swagger (OpenAPI)
 -   **Code Formatting:** Prettier
@@ -139,6 +142,17 @@ To authenticate a new WhatsApp session (e.g., `marketing-promo`):
     }
     ```
     The API responds immediately with a `blastId`.
+
+    Alternatively, you can omit `campaignId` and upload an Excel file instead. The request must be sent as `multipart/form-data`:
+
+    ```bash
+    curl -X POST http://localhost:3000/api/blasts \
+      -F "sessionId=marketing-promo" \
+      -F "message=Hello {name}, don't miss our amazing promo!" \
+      -F "recipientsFile=@recipients.xlsx"
+    ```
+
+    The Excel sheet should contain at minimum a `phone` column and optionally a `name` column. If both `campaignId` and an Excel file are supplied, the recipients are merged and deduplicated by phone number.
 
 3.  **Monitor Progress:**
     Connect to the WebSocket with the `blastId`:
