@@ -62,6 +62,23 @@ class SessionManager {
     session.ev.on('creds.update', saveCreds);
   }
 
+  public async logoutSession(sessionId: string) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      logger.warn(`Logout called for non-existing session: ${sessionId}`);
+      return;
+    }
+
+    try {
+      await session.logout();
+      this.sessions.delete(sessionId);
+      await this.publishStatus(sessionId, 'LOGGED_OUT');
+      logger.info(`Session ${sessionId} logged out successfully.`);
+    } catch (err) {
+      logger.error({ err }, `Failed to logout session ${sessionId}`);
+    }
+  }
+
   private registerEventHandlers(session: Session) {
     session.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
@@ -79,22 +96,35 @@ class SessionManager {
 
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        const reason =
+          DisconnectReason[
+            statusCode as unknown as keyof typeof DisconnectReason
+          ] || 'Unknown';
+
+        if (statusCode === DisconnectReason.loggedOut) {
+          logger.warn(`Session ${sessionId} logged out.`);
+          await this.publishStatus(sessionId, 'LOGGED_OUT');
+          this.sessions.delete(sessionId);
+          return;
+        }
+
+        if (
+          statusCode === DisconnectReason.timedOut ||
+          statusCode === DisconnectReason.connectionLost
+        ) {
+          logger.warn(`Session ${sessionId} timed out. Attempting to reconnect.`);
+          await this.publishStatus(sessionId, 'TIMEOUT');
+          setTimeout(() => this.createSession(sessionId, true), 5000);
+          return;
+        }
+
+        const shouldReconnect = true;
         logger.warn(
-          `Session ${sessionId} disconnected. Reason: ${
-            DisconnectReason[
-              statusCode as unknown as keyof typeof DisconnectReason
-            ] || 'Unknown'
-          }. Reconnecting: ${shouldReconnect}`
+          `Session ${sessionId} disconnected. Reason: ${reason}. Reconnecting.`
         );
         await this.publishStatus(sessionId, 'DISCONNECTED');
         if (shouldReconnect) {
           this.createSession(sessionId, true);
-        } else {
-          this.sessions.delete(sessionId);
-          logger.error(
-            `Session ${sessionId} logged out. Please re-authenticate.`
-          );
         }
       }
     });

@@ -46,3 +46,29 @@ export const connectSession = async (req: Request, res: Response) => {
     res.status(payload.statusCode).json(payload);
   }
 };
+
+export const logoutSession = async (req: Request, res: Response) => {
+  const { sessionId } = req.params;
+
+  if (!config.sessionIds.includes(sessionId)) {
+    const { payload } = Boom.notFound(
+      `Session with ID '${sessionId}' is not configured.`
+    ).output;
+    return res.status(payload.statusCode).json(payload);
+  }
+
+  try {
+    await redisPublisher.publish(
+      'session:command',
+      JSON.stringify({ command: 'logout', sessionId })
+    );
+    logger.info(`Published logout command for session: ${sessionId}`);
+    res.status(200).json({
+      message: `Logout process initiated for session ${sessionId}.`,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to publish logout command');
+    const { payload } = Boom.internal('Could not send command to worker.').output;
+    res.status(payload.statusCode).json(payload);
+  }
+};

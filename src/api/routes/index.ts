@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { getCampaignRecipients } from '../controllers/campaign.controller';
 import { initiateBlast } from '../controllers/blast.controller';
-import { getSessions, connectSession } from '../controllers/session.controller';
+import { getSessions, connectSession, logoutSession } from '../controllers/session.controller';
 import { swaggerDocs } from './swagger';
+import multer from 'multer';
 
 const router = Router();
 
 router.use('/docs', ...swaggerDocs);
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
  * @openapi
@@ -62,6 +65,10 @@ router.get('/campaigns/recipients', getCampaignRecipients);
  *               message:
  *                 type: string
  *                 example: "Hello {name}, don't miss our October promo!"
+ *               recipientsFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: Optional Excel file containing recipients
  *     responses:
  *       202:
  *         description: Accepted for processing
@@ -73,7 +80,7 @@ router.get('/campaigns/recipients', getCampaignRecipients);
  *                 blastId:
  *                   type: string
  */
-router.post('/blasts', initiateBlast);
+router.post('/blasts', upload.single('recipientsFile'), initiateBlast);
 
 /**
  * @openapi
@@ -96,7 +103,7 @@ router.post('/blasts', initiateBlast);
  *                     type: string
  *                   status:
  *                     type: string
- *                     enum: [CONNECTED, DISCONNECTED, AWAITING_QR, CONNECTING]
+ *                     enum: [CONNECTED, DISCONNECTED, AWAITING_QR, CONNECTING, LOGGED_OUT, TIMEOUT]
  */
 router.get('/sessions', getSessions);
 
@@ -118,5 +125,24 @@ router.get('/sessions', getSessions);
  *         description: Connection process initiated
  */
 router.post('/sessions/:sessionId/connect', connectSession);
+
+/**
+ * @openapi
+ * /api/sessions/{sessionId}/logout:
+ *   post:
+ *     tags:
+ *       - Sessions
+ *     summary: Logout a specific WhatsApp session
+ *     parameters:
+ *       - name: sessionId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Logout process initiated
+ */
+router.post('/sessions/:sessionId/logout', logoutSession);
 
 export default router;

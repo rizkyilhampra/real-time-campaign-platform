@@ -14,7 +14,9 @@ export type SessionStatus =
   | 'CONNECTED'
   | 'DISCONNECTED'
   | 'AWAITING_QR'
-  | 'CONNECTING';
+  | 'CONNECTING'
+  | 'LOGGED_OUT'
+  | 'TIMEOUT';
 
 export interface SessionState {
   id: string;

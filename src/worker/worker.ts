@@ -74,6 +74,9 @@ redisSubscriber.on('message', (channel, message) => {
       if (command === 'connect') {
         logger.info(`Received connect command for session: ${sessionId}`);
         sessionManager.createSession(sessionId, true);
+      } else if (command === 'logout') {
+        logger.info(`Received logout command for session: ${sessionId}`);
+        sessionManager.logoutSession(sessionId);
       }
     } catch (e) {
       logger.error({ err: e }, 'Could not parse session command');

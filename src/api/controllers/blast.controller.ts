@@ -4,8 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { addMessageJob } from '../../shared/jobs';
 import logger from '../../shared/logger';
 import { Recipient } from '../../shared/types';
+import XLSX from 'xlsx';
 
-// Using the same mock function from campaign controller
 const getRecipientsFromDB = async (
   campaignId: string
 ): Promise<Recipient[]> => {
@@ -25,10 +25,11 @@ const getRecipientsFromDB = async (
 
 export const initiateBlast = async (req: Request, res: Response) => {
   const { campaignId, sessionId, message } = req.body;
+  const file = (req as Request & { file?: Express.Multer.File }).file;
 
-  if (!campaignId || !sessionId || !message) {
+  if (!sessionId || !message || (!campaignId && !file)) {
     const { payload } = Boom.badRequest(
-      'Missing required fields: campaignId, sessionId, message'
+      'Provide sessionId, message and either campaignId or an Excel file of recipients.'
     ).output;
     return res.status(payload.statusCode).json(payload);
   }
@@ -36,9 +37,52 @@ export const initiateBlast = async (req: Request, res: Response) => {
   const blastId = uuidv4();
 
   try {
-    const recipients = await getRecipientsFromDB(campaignId);
+    let recipients: Recipient[] = [];
 
-    for (const recipient of recipients) {
+    if (file) {
+      try {
+        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+        const ws = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
+          defval: '',
+        });
+
+        recipients.push(
+          ...rows
+            .map((row: Record<string, any>): Recipient => {
+              const normalised: Record<string, string> = {};
+              for (const [k, v] of Object.entries(row)) {
+                normalised[k.toLowerCase()] = String(v);
+              }
+              return {
+                phone: (normalised['phone'] || '').trim(),
+                name: (normalised['name'] || '').trim(),
+              } as Recipient;
+            })
+            .filter((r: Recipient) => r.phone)
+        );
+      } catch (err) {
+        logger.warn({ err }, 'Failed to parse recipients Excel file');
+        const { payload } = Boom.badRequest('Invalid Excel file').output;
+        return res.status(payload.statusCode).json(payload);
+      }
+    }
+
+    if (campaignId) {
+      const campaignRecipients = await getRecipientsFromDB(campaignId);
+      recipients.push(...campaignRecipients);
+    }
+
+    if (recipients.length === 0) {
+      const { payload } = Boom.notFound('No recipients found').output;
+      return res.status(payload.statusCode).json(payload);
+    }
+
+    const uniqueRecipients = Array.from(
+      new Map(recipients.map((r) => [r.phone, r])).values()
+    );
+
+    for (const recipient of uniqueRecipients) {
       await addMessageJob({
         blastId,
         sessionId,
@@ -48,7 +92,12 @@ export const initiateBlast = async (req: Request, res: Response) => {
     }
 
     logger.info(
-      { blastId, campaignId, sessionId, recipientCount: recipients.length },
+      {
+        blastId,
+        campaignId,
+        sessionId,
+        recipientCount: uniqueRecipients.length,
+      },
       'Blast enqueued'
     );
     res.status(202).json({ blastId });
