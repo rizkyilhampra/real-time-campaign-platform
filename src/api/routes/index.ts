@@ -80,7 +80,10 @@ router.get('/campaigns/recipients', getCampaignRecipients);
  *                 blastId:
  *                   type: string
  */
-router.post('/blasts', upload.single('recipientsFile'), initiateBlast);
+router.post('/blasts', upload.fields([
+  { name: 'recipientsFile', maxCount: 1 },
+  { name: 'media', maxCount: 1 },
+]), initiateBlast);
 
 /**
  * @openapi

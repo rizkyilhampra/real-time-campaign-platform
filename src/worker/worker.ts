@@ -1,5 +1,8 @@
 import { Worker } from 'bullmq';
-import { jidNormalizedUser } from '@whiskeysockets/baileys';
+import {
+  jidNormalizedUser,
+  AnyMessageContent,
+} from '@whiskeysockets/baileys';
 import { MESSAGE_QUEUE_NAME } from '../shared/jobs';
 import { redis, redisPublisher, redisSubscriber } from '../shared/redis';
 import logger from '../shared/logger';
@@ -7,9 +10,9 @@ import { MessageJobData } from '../shared/types';
 import { sessionManager } from './services/SessionManager';
 
 const processMessageJob = async (job: { data: MessageJobData }) => {
-  const { blastId, sessionId, recipient, message } = job.data;
+  const { blastId, sessionId, recipient, message, media } = job.data;
   logger.info(
-    { blastId, sessionId, to: recipient.phone },
+    { blastId, sessionId, to: recipient.phone, hasMedia: !!media },
     'Processing message job'
   );
 
@@ -20,7 +23,39 @@ const processMessageJob = async (job: { data: MessageJobData }) => {
 
   try {
     const jid = jidNormalizedUser(`${recipient.phone}@s.whatsapp.net`);
-    await session.sendMessage(jid, { text: message });
+
+    if (media) {
+      const mediaBuffer = Buffer.from(media.buffer);
+      const { mimetype, filename } = media;
+
+      let hasCaption = true;
+      let mediaContent:
+        | { image: Buffer }
+        | { video: Buffer }
+        | { audio: Buffer }
+        | { document: Buffer; fileName: string };
+
+      if (mimetype.startsWith('image/')) {
+        mediaContent = { image: mediaBuffer };
+      } else if (mimetype.startsWith('video/')) {
+        mediaContent = { video: mediaBuffer };
+      } else if (mimetype.startsWith('audio/')) {
+        mediaContent = { audio: mediaBuffer };
+        hasCaption = false;
+      } else {
+        mediaContent = { document: mediaBuffer, fileName: filename };
+      }
+
+      const messageOptions: AnyMessageContent = {
+        ...mediaContent,
+        mimetype: mimetype,
+        ...(hasCaption && { caption: message }),
+      };
+
+      await session.sendMessage(jid, messageOptions);
+    } else {
+      await session.sendMessage(jid, { text: message });
+    }
     return { success: true };
   } catch (error) {
     logger.error({ err: error }, 'Failed to send message');
@@ -83,3 +118,28 @@ redisSubscriber.on('message', (channel, message) => {
     }
   }
 });
+
+const gracefulShutdown = async (signal: string) => {
+  logger.warn(`Received ${signal}. Shutting down gracefully...`);
+
+  await worker.close();
+  logger.info('BullMQ worker closed.');
+
+  const sessions = sessionManager.getSessionsState();
+  for (const sessionState of sessions) {
+    logger.info(`Disconnecting session: ${sessionState.id}`);
+    const session = await sessionManager.getSession(sessionState.id);
+    session?.end(new Error('Graceful shutdown initiated'));
+  }
+  logger.info('All sessions disconnected.');
+
+  await redis.quit();
+  await redisSubscriber.quit();
+  await redisPublisher.quit();
+  logger.info('Redis connections closed.');
+
+  process.exit(0);
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

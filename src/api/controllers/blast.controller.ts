@@ -6,6 +6,11 @@ import logger from '../../shared/logger';
 import { Recipient } from '../../shared/types';
 import XLSX from 'xlsx';
 
+interface UploadedFiles {
+  recipientsFile?: Express.Multer.File[];
+  media?: Express.Multer.File[];
+}
+
 const getRecipientsFromDB = async (
   campaignId: string
 ): Promise<Recipient[]> => {
@@ -25,9 +30,12 @@ const getRecipientsFromDB = async (
 
 export const initiateBlast = async (req: Request, res: Response) => {
   const { campaignId, sessionId, message } = req.body;
-  const file = (req as Request & { file?: Express.Multer.File }).file;
 
-  if (!sessionId || !message || (!campaignId && !file)) {
+  const files = req.files as UploadedFiles;
+  const recipientsFile = files?.recipientsFile?.[0];
+  const mediaFile = files?.media?.[0];
+
+  if (!sessionId || !message || (!campaignId && !recipientsFile)) {
     const { payload } = Boom.badRequest(
       'Provide sessionId, message and either campaignId or an Excel file of recipients.'
     ).output;
@@ -39,9 +47,9 @@ export const initiateBlast = async (req: Request, res: Response) => {
   try {
     let recipients: Recipient[] = [];
 
-    if (file) {
+    if (recipientsFile) {
       try {
-        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+        const workbook = XLSX.read(recipientsFile.buffer, { type: 'buffer' });
         const ws = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
           defval: '',
@@ -88,6 +96,24 @@ export const initiateBlast = async (req: Request, res: Response) => {
         sessionId,
         recipient,
         message: message.replace('{name}', recipient.name),
+      });
+    }
+
+    const mediaJobData = mediaFile
+      ? {
+          buffer: mediaFile.buffer,
+          filename: mediaFile.originalname,
+          mimetype: mediaFile.mimetype,
+        }
+      : undefined;
+
+    for (const recipient of uniqueRecipients) {
+      await addMessageJob({
+        blastId,
+        sessionId,
+        recipient,
+        message: message.replace('{name}', recipient.name),
+        media: mediaJobData,
       });
     }
 

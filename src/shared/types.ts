@@ -8,6 +8,11 @@ export interface MessageJobData {
   sessionId: string;
   message: string;
   recipient: Recipient;
+  media?: {
+    buffer: Buffer;
+    mimetype: string;
+    filename: string;
+  }
 }
 
 export type SessionStatus =
