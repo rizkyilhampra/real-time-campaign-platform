@@ -1,4 +1,3 @@
 /node_modules
-/dist
-/sessions
 .env
+repomix-output.xml
