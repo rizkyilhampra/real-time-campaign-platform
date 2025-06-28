@@ -50,10 +50,18 @@ export const initiateBlast = async (req: Request, res: Response) => {
     if (recipientsFile) {
       try {
         const workbook = XLSX.read(recipientsFile.buffer, { type: 'buffer' });
-        const ws = workbook.Sheets[workbook.SheetNames[0]];
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) {
+          throw new Error('Invalid Excel file: No sheets found');
+        }
+        const ws = workbook.Sheets[firstSheetName];
         const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
           defval: '',
         });
+
+        if (rows.length === 0 && !req.body.campaignId) {
+          throw Boom.badRequest('Excel file is empty and no campaignId provided');
+        }
 
         recipients.push(
           ...rows
@@ -71,6 +79,10 @@ export const initiateBlast = async (req: Request, res: Response) => {
         );
       } catch (err) {
         logger.warn({ err }, 'Failed to parse recipients Excel file');
+        if (Boom.isBoom(err)) {
+          const { payload } = err.output;
+          return res.status(payload.statusCode).json(payload);
+        }
         const { payload } = Boom.badRequest('Invalid Excel file').output;
         return res.status(payload.statusCode).json(payload);
       }
