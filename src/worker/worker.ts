@@ -8,6 +8,7 @@ import { redis, redisPublisher, redisSubscriber } from '../shared/redis';
 import logger from '../shared/logger';
 import { MessageJobData } from '../shared/types';
 import { sessionManager } from './services/SessionManager';
+import { scheduleCampaignJobs } from './services/CampaignScheduler';
 
 const processMessageJob = async (job: { data: MessageJobData }) => {
   const { blastId, sessionId, recipient, message, media } = job.data;
@@ -143,3 +144,6 @@ const gracefulShutdown = async (signal: string) => {
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Initialize and start the campaign data scheduler
+scheduleCampaignJobs();

@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import Boom from '@hapi/boom';
 import { Recipient } from '../../shared/types';
+import { redis } from '../../shared/redis';
+import logger from '../../shared/logger';
+
+const MARKETING_PROMO_CAMPAIGN_ID = 'marketing-promo';
+const MARKETING_PROMO_CACHE_KEY = `campaign:${MARKETING_PROMO_CAMPAIGN_ID}:recipients`;
 
 // MOCK: In a real application, this would query a database.
 const MOCK_CAMPAIGNS: {
@@ -23,7 +28,17 @@ const MOCK_CAMPAIGNS: {
 const getRecipientsFromDB = async (
   campaignId: string
 ): Promise<Recipient[]> => {
-  // Simulate DB latency
+  if (campaignId === MARKETING_PROMO_CAMPAIGN_ID) {
+    const cachedRecipients = await redis.get(MARKETING_PROMO_CACHE_KEY);
+    if (cachedRecipients) {
+      return JSON.parse(cachedRecipients);
+    } else {
+      logger.warn(`No cached recipients found for campaign: ${campaignId}. Returning empty array.`);
+      return [];
+    }
+  }
+
+  // Simulate DB latency for other mock campaigns
   await new Promise((resolve) => setTimeout(resolve, 150));
 
   if (!MOCK_CAMPAIGNS[campaignId]) {
@@ -35,11 +50,20 @@ const getRecipientsFromDB = async (
 
 export const getCampaigns = async (_req: Request, res: Response) => {
   // In a real app, you'd fetch this from a DB and it might have more metadata
-  const campaigns = Object.entries(MOCK_CAMPAIGNS).map(([id, data]) => ({
-    id,
-    name: data.name,
-  }));
-  res.json(campaigns);
+  const staticCampaigns = Object.entries(MOCK_CAMPAIGNS).map(
+    ([id, data]) => ({
+      id,
+      name: data.name,
+    })
+  );
+
+  const dynamicCampaigns = [
+    { id: MARKETING_PROMO_CAMPAIGN_ID, name: 'Marketing Promo' },
+  ];
+
+  const allCampaigns = [...dynamicCampaigns, ...staticCampaigns];
+
+  res.json(allCampaigns);
 };
 
 export const getCampaignRecipients = async (req: Request, res: Response) => {
