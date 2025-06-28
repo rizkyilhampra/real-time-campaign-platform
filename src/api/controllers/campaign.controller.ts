@@ -3,18 +3,26 @@ import Boom from '@hapi/boom';
 import { Recipient } from '../../shared/types';
 
 // MOCK: In a real application, this would query a database.
-const getRecipientsFromDB = async (
-  campaignId: string
-): Promise<Recipient[]> => {
-  const MOCK_CAMPAIGNS: { [key: string]: Recipient[] } = {
-    'october-promo': [
+const MOCK_CAMPAIGNS: {
+  [key: string]: { name: string; recipients: Recipient[] };
+} = {
+  'october-promo': {
+    name: 'October Promo',
+    recipients: [
       { name: 'Alice', phone: '1234567890' },
       { name: 'Bob', phone: '0987654321' },
       { name: 'Charlie', phone: '1122334455' },
     ],
-    'new-user-welcome': [{ name: 'David', phone: '5544332211' }],
-  };
+  },
+  'new-user-welcome': {
+    name: 'New User Welcome',
+    recipients: [{ name: 'David', phone: '5544332211' }],
+  },
+};
 
+const getRecipientsFromDB = async (
+  campaignId: string
+): Promise<Recipient[]> => {
   // Simulate DB latency
   await new Promise((resolve) => setTimeout(resolve, 150));
 
@@ -22,7 +30,16 @@ const getRecipientsFromDB = async (
     throw Boom.notFound(`Campaign with ID '${campaignId}' not found.`);
   }
 
-  return MOCK_CAMPAIGNS[campaignId];
+  return MOCK_CAMPAIGNS[campaignId].recipients;
+};
+
+export const getCampaigns = async (_req: Request, res: Response) => {
+  // In a real app, you'd fetch this from a DB and it might have more metadata
+  const campaigns = Object.entries(MOCK_CAMPAIGNS).map(([id, data]) => ({
+    id,
+    name: data.name,
+  }));
+  res.json(campaigns);
 };
 
 export const getCampaignRecipients = async (req: Request, res: Response) => {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCampaignRecipients } from '../controllers/campaign.controller';
+import { getCampaignRecipients, getCampaigns } from '../controllers/campaign.controller';
 import { initiateBlast } from '../controllers/blast.controller';
 import { getSessions, connectSession, logoutSession } from '../controllers/session.controller';
 import { swaggerDocs } from './swagger';
@@ -10,6 +10,30 @@ const router = Router();
 router.use('/docs', ...swaggerDocs);
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+/**
+ * @openapi
+ * /api/campaigns:
+ *   get:
+ *     tags:
+ *       - Campaigns
+ *     summary: Retrieve the list of all available campaigns
+ *     responses:
+ *       200:
+ *         description: A JSON array of campaigns
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: string
+ *                   name:
+ *                     type: string
+ */
+router.get('/campaigns', getCampaigns);
 
 /**
  * @openapi
