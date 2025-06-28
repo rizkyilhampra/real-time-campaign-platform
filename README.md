@@ -164,6 +164,17 @@ To authenticate a new WhatsApp session (e.g., `marketing-promo`):
 -   `npm run format`: Automatically formats all `.ts` files in the `src` directory using Prettier.
 -   `npm run format:check`: Checks if all files are correctly formatted. Ideal for CI/CD pipelines.
 -   `npm run dev`: Runs both the `api` and `worker` services in development mode with `nodemon` (for local, non-Docker development).
+-   `npm test`: Runs the automated test suite for the API controllers.
+
+## 🧪 Testing
+
+This project uses [Jest](https://jestjs.io/) for running tests and [Supertest](https://github.com/visionmedia/supertest) for testing HTTP endpoints. All external services, such as databases and Redis, are mocked, allowing tests to run in isolation without requiring active service connections.
+
+To run the entire test suite, execute the following command from the `backend` directory:
+
+```bash
+npm test
+```
 
 ## 📁 Folder Structure
 
