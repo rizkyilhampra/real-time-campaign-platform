@@ -34,9 +34,8 @@ const fetchAndCacheMarketingRecipients = async (): Promise<void> => {
     `;
     conn = await db.getConnection();
     const [rows] = await conn.query<(Recipient & RowDataPacket)[]>(query);
-    
+
     if (rows.length > 0) {
-      // Cache expires in 25 hours, giving some buffer before the next 2am run
       await redis.set(MARKETING_PROMO_CACHE_KEY, JSON.stringify(rows), 'EX', 60 * 60 * 25);
       logger.info(`Successfully cached ${rows.length} marketing recipients.`);
     } else {
@@ -50,15 +49,13 @@ const fetchAndCacheMarketingRecipients = async (): Promise<void> => {
 };
 
 export const scheduleCampaignJobs = () => {
-  // Run every day at 2:00 AM
   cron.schedule('0 2 * * *', () => {
     logger.info('Running scheduled job: fetchAndCacheMarketingRecipients');
     fetchAndCacheMarketingRecipients();
   });
 
-  // Also run once on startup
   logger.info('Running initial job: fetchAndCacheMarketingRecipients');
   fetchAndCacheMarketingRecipients();
 
   logger.info('Campaign scheduler initialized.');
-}; 
+};

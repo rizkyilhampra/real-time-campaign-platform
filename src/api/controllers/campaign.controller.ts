@@ -7,7 +7,6 @@ import logger from '../../shared/logger';
 const MARKETING_PROMO_CAMPAIGN_ID = 'marketing-promo';
 const MARKETING_PROMO_CACHE_KEY = `campaign:${MARKETING_PROMO_CAMPAIGN_ID}:recipients`;
 
-// MOCK: In a real application, this would query a database.
 const MOCK_CAMPAIGNS: {
   [key: string]: { name: string; recipients: Recipient[] };
 } = {
@@ -37,9 +36,6 @@ const getRecipientsFromDB = async (
       return [];
     }
   }
-
-  // Simulate DB latency for other mock campaigns
-  await new Promise((resolve) => setTimeout(resolve, 150));
 
   if (!MOCK_CAMPAIGNS[campaignId]) {
     throw Boom.notFound(`Campaign with ID '${campaignId}' not found.`);
