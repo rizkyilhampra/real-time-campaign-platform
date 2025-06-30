@@ -5,28 +5,12 @@ import { addMessageJob } from '../../shared/jobs';
 import logger from '../../shared/logger';
 import { Recipient } from '../../shared/types';
 import XLSX from 'xlsx';
+import { getRecipientsFromDB } from './campaign.controller';
 
 interface UploadedFiles {
   recipientsFile?: Express.Multer.File[];
   media?: Express.Multer.File[];
 }
-
-const getRecipientsFromDB = async (
-  campaignId: string
-): Promise<Recipient[]> => {
-  const MOCK_CAMPAIGNS: { [key: string]: Recipient[] } = {
-    'october-promo': [
-      { name: 'Alice', phone: '1234567890' },
-      { name: 'Bob', phone: '0987654321' },
-      { name: 'Charlie', phone: '1122334455' },
-    ],
-    'new-user-welcome': [{ name: 'David', phone: '5544332211' }],
-  };
-  if (!MOCK_CAMPAIGNS[campaignId]) {
-    throw Boom.notFound(`Campaign with ID '${campaignId}' not found.`);
-  }
-  return MOCK_CAMPAIGNS[campaignId];
-};
 
 export const initiateBlast = async (req: Request, res: Response) => {
   const { campaignId, sessionId, message } = req.body;
@@ -101,15 +85,6 @@ export const initiateBlast = async (req: Request, res: Response) => {
     const uniqueRecipients = Array.from(
       new Map(recipients.map((r) => [r.phone, r])).values()
     );
-
-    for (const recipient of uniqueRecipients) {
-      await addMessageJob({
-        blastId,
-        sessionId,
-        recipient,
-        message: message.replace('{name}', recipient.name),
-      });
-    }
 
     const mediaJobData = mediaFile
       ? {

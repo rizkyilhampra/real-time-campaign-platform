@@ -20,7 +20,7 @@ const MOCK_CAMPAIGNS: {
   // },
 };
 
-const getRecipientsFromDB = async (
+export const getRecipientsFromDB = async (
   campaignId: string
 ): Promise<Recipient[]> => {
   if (campaignId === MARKETING_PROMO_CAMPAIGN_ID) {
