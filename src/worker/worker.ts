@@ -145,5 +145,4 @@ const gracefulShutdown = async (signal: string) => {
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// Initialize and start the campaign data scheduler
 scheduleCampaignJobs();

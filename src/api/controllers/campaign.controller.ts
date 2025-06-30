@@ -10,18 +10,14 @@ const MARKETING_PROMO_CACHE_KEY = `campaign:${MARKETING_PROMO_CAMPAIGN_ID}:recip
 const MOCK_CAMPAIGNS: {
   [key: string]: { name: string; recipients: Recipient[] };
 } = {
-  'october-promo': {
-    name: 'October Promo',
-    recipients: [
-      { name: 'Alice', phone: '1234567890' },
-      { name: 'Bob', phone: '0987654321' },
-      { name: 'Charlie', phone: '1122334455' },
-    ],
-  },
-  'new-user-welcome': {
-    name: 'New User Welcome',
-    recipients: [{ name: 'David', phone: '5544332211' }],
-  },
+  // 'october-promo': {
+  //   name: 'October Promo',
+  //   recipients: [
+  //     { name: 'Alice', phone: '1234567890' },
+  //     { name: 'Bob', phone: '0987654321' },
+  //     { name: 'Charlie', phone: '1122334455' },
+  //   ],
+  // },
 };
 
 const getRecipientsFromDB = async (
