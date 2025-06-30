@@ -6,6 +6,7 @@ import logger from '../../shared/logger';
 import { Recipient } from '../../shared/types';
 import XLSX from 'xlsx';
 import { getRecipientsFromDB } from './campaign.controller';
+import { redis } from '../../shared/redis';
 
 interface UploadedFiles {
   recipientsFile?: Express.Multer.File[];
@@ -113,14 +114,20 @@ export const initiateBlast = async (req: Request, res: Response) => {
       },
       'Blast enqueued'
     );
-    res.status(202).json({ blastId });
+
+    await redis.set(`blast:${blastId}:remaining`, uniqueRecipients.length);
+    res.status(202).json({
+      blastId,
+      message: 'Blast has been enqueued.',
+      recipientCount: uniqueRecipients.length,
+    });
   } catch (error) {
     logger.error({ err: error }, 'Failed to initiate blast');
     if (Boom.isBoom(error)) {
       const { payload } = error.output;
       return res.status(payload.statusCode).json(payload);
     }
-    const { payload } = Boom.internal().output;
+    const { payload } = Boom.internal('Failed to initiate blast.').output;
     res.status(payload.statusCode).json(payload);
   }
 };

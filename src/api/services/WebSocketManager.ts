@@ -3,14 +3,22 @@ import { Server } from 'http';
 import { parse } from 'url';
 import logger from '../../shared/logger';
 import { redisSubscriber } from '../../shared/redis';
+import { IncomingMessage } from 'http';
+
+interface WebSocketWithId extends WebSocket {
+  blastId?: string;
+  sessionId?: string;
+}
 
 export class WebSocketManager {
   private wss: WebSocketServer;
   private server: Server;
+  private redisSubscriber: typeof redisSubscriber;
 
   constructor(server: Server) {
     this.server = server;
     this.wss = new WebSocketServer({ noServer: true });
+    this.redisSubscriber = redisSubscriber.duplicate();
   }
 
   public init() {
@@ -30,70 +38,44 @@ export class WebSocketManager {
       logger.info({ blastId, sessionId }, 'WebSocket client connected.');
 
       ws.on('close', () => {
-        logger.info({ blastId, sessionId }, 'WebSocket client disconnected.');
+        logger.info(`WebSocket client disconnected.`);
       });
     });
 
-    this.listenToRedisChannels();
+    this.start();
   }
 
-  private listenToRedisChannels() {
-    redisSubscriber.subscribe(
-      'blast:progress',
-      'qr:update',
+  private start() {
+    this.redisSubscriber.on('message', (channel, message) => {
+      const parsedMessage = JSON.parse(message);
+      const [type, id] = channel.split(':');
+
+      if (type === 'blast') {
+        const event = id === 'progress' ? 'blast:progress' : 'blast:completed';
+        const payload = { event, payload: parsedMessage };
+
+        this.wss.clients.forEach((client: WebSocket) => {
+          const clientWithId = client as WebSocketWithId;
+          if (clientWithId.blastId === parsedMessage.blastId) {
+            clientWithId.send(JSON.stringify(payload));
+          }
+        });
+      } else {
+        const payload = { event: channel, payload: parsedMessage };
+        this.wss.clients.forEach((client: WebSocket) => {
+          const clientWithId = client as WebSocketWithId;
+          if (!clientWithId.blastId) {
+            clientWithId.send(JSON.stringify(payload));
+          }
+        });
+      }
+    });
+
+    this.redisSubscriber.subscribe(
       'session:status',
-      (err) => {
-        if (err) {
-          logger.error({ err }, 'Failed to subscribe to Redis channels');
-        }
-      }
+      'qr:update',
+      'blast:progress',
+      'blast:completed'
     );
-
-    redisSubscriber.on('message', (channel, message) => {
-      try {
-        const data = JSON.parse(message);
-
-        if (channel === 'blast:progress') {
-          this.broadcastToBlasts(data.blastId, {
-            type: 'blast_progress',
-            ...data,
-          });
-        } else if (channel === 'qr:update') {
-          this.broadcastToSessions(data.sessionId, {
-            type: 'qr_update',
-            ...data,
-          });
-        } else if (channel === 'session:status') {
-          this.broadcastToSessions(data.sessionId, {
-            type: 'session_status',
-            ...data,
-          });
-        }
-      } catch (e) {
-        logger.error({ err: e }, 'Failed to parse message from Redis');
-      }
-    });
-  }
-
-  private broadcastToBlasts(blastId: string, data: any) {
-    this.wss.clients.forEach((client) => {
-      if (
-        client.readyState === WebSocket.OPEN &&
-        (client as any).blastId === blastId
-      ) {
-        client.send(JSON.stringify(data));
-      }
-    });
-  }
-
-  private broadcastToSessions(sessionId: string, data: any) {
-    this.wss.clients.forEach((client) => {
-      if (
-        client.readyState === WebSocket.OPEN &&
-        (client as any).sessionId === sessionId
-      ) {
-        client.send(JSON.stringify(data));
-      }
-    });
   }
 }

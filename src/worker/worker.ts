@@ -82,6 +82,15 @@ worker.on('completed', async (job, result) => {
   const { blastId, recipient } = job.data;
   const payload = JSON.stringify({ blastId, status: 'SENT', recipient });
   await redisPublisher.publish('blast:progress', payload);
+
+  const remainingJobs = await redis.decr(`blast:${blastId}:remaining`);
+  if (remainingJobs === 0) {
+    await redisPublisher.publish(
+      'blast:completed',
+      JSON.stringify({ blastId })
+    );
+    await redis.del(`blast:${blastId}:remaining`);
+  }
 });
 
 worker.on('failed', async (job, err) => {
@@ -90,6 +99,15 @@ worker.on('failed', async (job, err) => {
     const { blastId, recipient } = job.data;
     const payload = JSON.stringify({ blastId, status: 'FAILED', recipient });
     await redisPublisher.publish('blast:progress', payload);
+
+    const remainingJobs = await redis.decr(`blast:${blastId}:remaining`);
+    if (remainingJobs === 0) {
+      await redisPublisher.publish(
+        'blast:completed',
+        JSON.stringify({ blastId })
+      );
+      await redis.del(`blast:${blastId}:remaining`);
+    }
   }
 });
 
