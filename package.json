@@ -1,7 +1,8 @@
 {
-  "name": "real-time-campaign-platform",
-  "version": "1.0.0",
-  "description": "Real-time campaign messaging platform",
+  "name": "whatsapp-message-blaster-backend",
+  "version": "0.0.1",
+  "description": "Whatsapp Message Blaster",
+  "private": true,
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

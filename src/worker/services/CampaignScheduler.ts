@@ -5,11 +5,11 @@ import db from '../../shared/database';
 import { redis } from '../../shared/redis';
 import { Recipient } from '../../shared/types';
 
-const MARKETING_PROMO_CAMPAIGN_ID = 'marketing-promo';
-const MARKETING_PROMO_CACHE_KEY = `campaign:${MARKETING_PROMO_CAMPAIGN_ID}:recipients`;
+const PICARE_CAMPAIGN_ID = 'picare';
+const PICARE_CACHE_KEY = `campaign:${PICARE_CAMPAIGN_ID}:recipients`;
 
-const fetchAndCacheMarketingRecipients = async (): Promise<void> => {
-  logger.info('Fetching marketing recipients from the database...');
+const fetchAndCachePicareRecipients = async (): Promise<void> => {
+  logger.info('Fetching picare recipients from the database...');
   let conn;
   try {
     const query = `
@@ -20,13 +20,6 @@ const fetchAndCacheMarketingRecipients = async (): Promise<void> => {
           FROM daftar_pasien
           WHERE
               LOWER(Nama) NOT LIKE '%test%'
-              AND NIK NOT LIKE '%test%'
-              AND Alamat NOT LIKE '%test%'
-              AND Poli_tujuan NOT LIKE '%test%'
-              AND Nama NOT LIKE '%asd%'
-              AND NIK NOT LIKE '%asd%'
-              AND Alamat NOT LIKE '%asd%'
-              AND Poli_tujuan NOT LIKE '%asd%'
               AND no_wa IS NOT NULL AND no_wa != ''
           GROUP BY no_wa
       ) T2
@@ -36,13 +29,13 @@ const fetchAndCacheMarketingRecipients = async (): Promise<void> => {
     const [rows] = await conn.query<(Recipient & RowDataPacket)[]>(query);
 
     if (rows.length > 0) {
-      await redis.set(MARKETING_PROMO_CACHE_KEY, JSON.stringify(rows), 'EX', 60 * 60 * 25);
-      logger.info(`Successfully cached ${rows.length} marketing recipients.`);
+      await redis.set(PICARE_CACHE_KEY, JSON.stringify(rows), 'EX', 60 * 60 * 25);
+      logger.info(`Successfully cached ${rows.length} picare recipients.`);
     } else {
-      logger.warn('No marketing recipients found in the database. The cache will not be updated.');
+      logger.warn('No picare recipients found in the database. The cache will not be updated.');
     }
   } catch (error) {
-    logger.error({ err: error }, 'Failed to fetch and cache marketing recipients.');
+    logger.error({ err: error }, 'Failed to fetch and cache picare recipients.');
   } finally {
     if (conn) conn.release();
   }
@@ -50,12 +43,12 @@ const fetchAndCacheMarketingRecipients = async (): Promise<void> => {
 
 export const scheduleCampaignJobs = () => {
   cron.schedule('0 2 * * *', () => {
-    logger.info('Running scheduled job: fetchAndCacheMarketingRecipients');
-    fetchAndCacheMarketingRecipients();
+    logger.info('Running scheduled job: fetchAndCachePicareRecipients');
+    fetchAndCachePicareRecipients();
   });
 
-  logger.info('Running initial job: fetchAndCacheMarketingRecipients');
-  fetchAndCacheMarketingRecipients();
+  logger.info('Running initial job: fetchAndCachePicareRecipients');
+  fetchAndCachePicareRecipients();
 
   logger.info('Campaign scheduler initialized.');
 };

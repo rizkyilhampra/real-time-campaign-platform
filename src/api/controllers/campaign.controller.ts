@@ -4,27 +4,25 @@ import { Recipient } from '../../shared/types';
 import { redis } from '../../shared/redis';
 import logger from '../../shared/logger';
 
-const MARKETING_PROMO_CAMPAIGN_ID = 'marketing-promo';
-const MARKETING_PROMO_CACHE_KEY = `campaign:${MARKETING_PROMO_CAMPAIGN_ID}:recipients`;
+const PICARE_CAMPAIGN_ID = 'picare';
+const PICARE_CACHE_KEY = `campaign:${PICARE_CAMPAIGN_ID}:recipients`;
 
 const MOCK_CAMPAIGNS: {
   [key: string]: { name: string; recipients: Recipient[] };
 } = {
-  // 'october-promo': {
-  //   name: 'October Promo',
-  //   recipients: [
-  //     { name: 'Alice', phone: '1234567890' },
-  //     { name: 'Bob', phone: '0987654321' },
-  //     { name: 'Charlie', phone: '1122334455' },
-  //   ],
-  // },
+  'test': {
+    name: 'Test',
+    recipients: [
+      { name: 'Rizky Ilham Pratama', phone: '628998039978' },
+    ],
+  },
 };
 
 export const getRecipientsFromDB = async (
   campaignId: string
 ): Promise<Recipient[]> => {
-  if (campaignId === MARKETING_PROMO_CAMPAIGN_ID) {
-    const cachedRecipients = await redis.get(MARKETING_PROMO_CACHE_KEY);
+  if (campaignId === PICARE_CAMPAIGN_ID) {
+    const cachedRecipients = await redis.get(PICARE_CACHE_KEY);
     if (cachedRecipients) {
       return JSON.parse(cachedRecipients);
     } else {
@@ -50,7 +48,7 @@ export const getCampaigns = async (_req: Request, res: Response) => {
   );
 
   const dynamicCampaigns = [
-    { id: MARKETING_PROMO_CAMPAIGN_ID, name: 'Marketing Promo' },
+    { id: PICARE_CAMPAIGN_ID, name: 'PICare' },
   ];
 
   const allCampaigns = [...dynamicCampaigns, ...staticCampaigns];

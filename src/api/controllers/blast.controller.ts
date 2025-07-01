@@ -85,6 +85,8 @@ export const initiateBlast = async (req: Request, res: Response) => {
       recipients.push(...campaignRecipients);
     }
 
+    logger.info({ recipientCount: recipients.length }, 'Recipients found');
+
     if (recipients.length === 0) {
       const { payload } = Boom.notFound('No recipients found').output;
       return res.status(payload.statusCode).json(payload);
