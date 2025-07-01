@@ -10,6 +10,34 @@ import { MessageJobData } from '../shared/types';
 import { sessionManager } from './services/SessionManager';
 import { scheduleCampaignJobs } from './services/CampaignScheduler';
 
+const setupCommandListener = () => {
+  const commandSubscriber = redisSubscriber.duplicate();
+  commandSubscriber.subscribe('session:command', (err) => {
+    if (err) {
+      logger.error({ err }, 'Failed to subscribe to session:command channel');
+      return;
+    }
+    logger.info('Subscribed to session:command channel');
+  });
+
+  commandSubscriber.on('message', async (channel, message) => {
+    if (channel !== 'session:command') return;
+
+    try {
+      const { command, sessionId } = JSON.parse(message);
+      logger.info({ command, sessionId }, 'Received command for session');
+
+      if (command === 'connect') {
+        await sessionManager.createSession(sessionId);
+      } else if (command === 'logout') {
+        await sessionManager.logoutSession(sessionId);
+      }
+    } catch (e) {
+      logger.error({ err: e }, 'Failed to process command from redis');
+    }
+  });
+};
+
 const processMessageJob = async (job: { data: MessageJobData }) => {
   const { blastId, sessionId, recipient, message, media } = job.data;
   logger.info(
@@ -113,30 +141,8 @@ worker.on('failed', async (job, err) => {
 
 logger.info('Worker process started and listening for jobs.');
 
-redisSubscriber.subscribe('session:command', (err) => {
-  if (err) {
-    logger.error({ err }, 'Failed to subscribe to session commands');
-    return;
-  }
-  logger.info('Subscribed to session:command channel.');
-});
-
-redisSubscriber.on('message', (channel, message) => {
-  if (channel === 'session:command') {
-    try {
-      const { command, sessionId } = JSON.parse(message);
-      if (command === 'connect') {
-        logger.info(`Received connect command for session: ${sessionId}`);
-        sessionManager.createSession(sessionId, true);
-      } else if (command === 'logout') {
-        logger.info(`Received logout command for session: ${sessionId}`);
-        sessionManager.logoutSession(sessionId);
-      }
-    } catch (e) {
-      logger.error({ err: e }, 'Could not parse session command');
-    }
-  }
-});
+setupCommandListener();
+scheduleCampaignJobs();
 
 const gracefulShutdown = async (signal: string) => {
   logger.warn(`Received ${signal}. Shutting down gracefully...`);
@@ -162,5 +168,3 @@ const gracefulShutdown = async (signal: string) => {
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-scheduleCampaignJobs();

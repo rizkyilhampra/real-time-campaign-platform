@@ -5,21 +5,18 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import path from 'path';
-import fs from 'fs/promises';
+import * as fsSync from 'fs';
 
 import logger, { baileysLogger } from '../../shared/logger';
 import { redis, redisPublisher } from '../../shared/redis';
 import { SessionState, SessionStatus } from '../../shared/types';
-import config from '../../shared/config';
 
 type Session = WASocket & { id: string };
 
 class SessionManager {
   private sessions: Map<string, Session> = new Map();
 
-  constructor() {
-    config.sessionIds.forEach((id) => this.createSession(id, false));
-  }
+  constructor() {}
 
   public async getSession(sessionId: string): Promise<Session | undefined> {
     return this.sessions.get(sessionId);
@@ -53,6 +50,8 @@ class SessionManager {
       auth: state,
       logger: baileysLogger as any,
       printQRInTerminal: false,
+      qrTimeout: 60000,
+      connectTimeoutMs: 60000,
     });
 
     const session = Object.assign(socket, { id: sessionId });
@@ -72,9 +71,7 @@ class SessionManager {
 
     try {
       await session.logout();
-      this.sessions.delete(sessionId);
-      await this.publishStatus(sessionId, 'LOGGED_OUT');
-      logger.info(`Session ${sessionId} logged out successfully.`);
+      logger.info(`Logout command sent for session ${sessionId}, awaiting disconnection.`);
     } catch (err) {
       if (!(err instanceof Error && err.message === 'Intentional Logout')) {
         logger.error({ err }, `Failed to logout session ${sessionId}`);
@@ -90,6 +87,7 @@ class SessionManager {
       if (qr) {
         logger.info(`QR code available for session: ${sessionId}`);
         await this.publishQR(sessionId, qr);
+        await this.publishStatus(sessionId, 'AWAITING_QR');
       }
 
       if (connection === 'open') {
@@ -104,10 +102,6 @@ class SessionManager {
             statusCode as unknown as keyof typeof DisconnectReason
           ] || 'Unknown';
 
-        const shouldReconnect =
-          statusCode !== DisconnectReason.loggedOut &&
-          statusCode !== DisconnectReason.connectionReplaced;
-
         if (statusCode === DisconnectReason.loggedOut) {
           logger.warn(`Session ${sessionId} logged out.`);
           const sessionDir = path.join(
@@ -118,40 +112,47 @@ class SessionManager {
             'sessions',
             sessionId
           );
-          try {
-            await fs.rm(sessionDir, { recursive: true, force: true });
-          } catch (err) {
-            logger.error({ err }, `Failed to delete session directory for ${sessionId}`);
+          if (fsSync.existsSync(sessionDir)) {
+            try {
+              fsSync.rmSync(sessionDir, { recursive: true, force: true });
+              logger.info(`Session directory for ${sessionId} deleted.`);
+            } catch (err) {
+              logger.error(
+                { err },
+                `Failed to delete session directory for ${sessionId}`
+              );
+            }
           }
           this.sessions.delete(sessionId);
           await this.publishStatus(sessionId, 'DISCONNECTED');
           return;
         }
 
-        if (statusCode === DisconnectReason.restartRequired) {
-          logger.warn(`Session ${sessionId} requires restart. Reconnecting...`);
-          await this.publishStatus(sessionId, 'CONNECTING');
-          this.createSession(sessionId, true);
-          return;
-        }
-
-        if (
+        const shouldReconnect =
           statusCode === DisconnectReason.timedOut ||
-          statusCode === DisconnectReason.connectionLost
-        ) {
-          logger.warn(`Session ${sessionId} timed out. Attempting to reconnect.`);
-          await this.publishStatus(sessionId, 'TIMEOUT');
+          statusCode === DisconnectReason.connectionLost ||
+          statusCode === DisconnectReason.restartRequired;
+
+        if (shouldReconnect) {
+          if (!this.sessions.has(sessionId)) {
+            logger.info(
+              `Ignoring reconnect for session ${sessionId} as it is no longer active.`
+            );
+            return;
+          }
+
+          logger.warn(
+            `Session ${sessionId} disconnected due to ${reason}. Attempting to reconnect...`
+          );
+          await this.publishStatus(sessionId, 'CONNECTING');
           setTimeout(() => this.createSession(sessionId, true), 5000);
           return;
         }
 
         logger.warn(
-          `Session ${sessionId} disconnected. Reason: ${reason}. Reconnecting: ${shouldReconnect}.`
+          `Session ${sessionId} disconnected. Reason: ${reason}. Not reconnecting.`
         );
         await this.publishStatus(sessionId, 'DISCONNECTED');
-        if (shouldReconnect) {
-          setTimeout(() => this.createSession(sessionId, true), 5000);
-        }
       }
     });
   }

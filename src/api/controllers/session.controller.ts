@@ -35,7 +35,7 @@ export const connectSession = async (req: Request, res: Response) => {
       JSON.stringify({ command: 'connect', sessionId })
     );
     logger.info(`Published connect command for session: ${sessionId}`);
-    res.status(200).json({
+    res.status(202).json({
       message: `Connection process initiated for session ${sessionId}. Check WebSocket for QR code.`,
     });
   } catch (error) {

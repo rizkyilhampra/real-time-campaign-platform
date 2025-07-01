@@ -30,6 +30,13 @@ export const initiateBlast = async (req: Request, res: Response) => {
   const blastId = uuidv4();
 
   try {
+    const sessionStatus = await redis.get(`session:${sessionId}:status`);
+    if (sessionStatus !== 'CONNECTED') {
+      throw Boom.badRequest(
+        `Session ${sessionId} is not connected. Please connect the session before sending messages.`
+      );
+    }
+
     let recipients: Recipient[] = [];
 
     if (recipientsFile) {
