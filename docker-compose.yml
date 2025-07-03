@@ -19,6 +19,8 @@ services:
     restart: always
     volumes:
       - ./sessions:/usr/src/app/sessions
+      - ./data:/usr/src/app/data
+      - ./uploads:/usr/src/app/uploads
 
   worker:
     build:
@@ -32,3 +34,5 @@ services:
     restart: always
     volumes:
       - ./sessions:/usr/src/app/sessions
+      - ./data:/usr/src/app/data
+      - ./uploads:/usr/src/app/uploads

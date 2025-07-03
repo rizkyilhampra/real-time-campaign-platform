@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import Boom from '@hapi/boom';
 import { v4 as uuidv4 } from 'uuid';
-import { addMessageJob } from '../../shared/jobs';
+import { addMessageJob, addFileProcessJob } from '../../shared/jobs';
 import logger from '../../shared/logger';
 import { Recipient } from '../../shared/types';
+import fs from 'fs/promises';
+import path from 'path';
 import XLSX from 'xlsx';
 import { getRecipientsFromDB } from './campaign.controller';
 import { redis } from '../../shared/redis';
@@ -37,65 +39,6 @@ export const initiateBlast = async (req: Request, res: Response) => {
       );
     }
 
-    let recipients: Recipient[] = [];
-
-    if (recipientsFile) {
-      try {
-        const workbook = XLSX.read(recipientsFile.buffer, { type: 'buffer' });
-        const firstSheetName = workbook.SheetNames[0];
-        if (!firstSheetName) {
-          throw new Error('Invalid Excel file: No sheets found');
-        }
-        const ws = workbook.Sheets[firstSheetName];
-        const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, {
-          defval: '',
-        });
-
-        if (rows.length === 0 && !req.body.campaignId) {
-          throw Boom.badRequest('Excel file is empty and no campaignId provided');
-        }
-
-        recipients.push(
-          ...rows
-            .map((row: Record<string, any>): Recipient => {
-              const normalised: Record<string, string> = {};
-              for (const [k, v] of Object.entries(row)) {
-                normalised[k.toLowerCase()] = String(v);
-              }
-              return {
-                phone: (normalised['phone'] || '').trim(),
-                name: (normalised['name'] || '').trim(),
-              } as Recipient;
-            })
-            .filter((r: Recipient) => r.phone)
-        );
-      } catch (err) {
-        logger.warn({ err }, 'Failed to parse recipients Excel file');
-        if (Boom.isBoom(err)) {
-          const { payload } = err.output;
-          return res.status(payload.statusCode).json(payload);
-        }
-        const { payload } = Boom.badRequest('Invalid Excel file').output;
-        return res.status(payload.statusCode).json(payload);
-      }
-    }
-
-    if (campaignId) {
-      const campaignRecipients = await getRecipientsFromDB(campaignId);
-      recipients.push(...campaignRecipients);
-    }
-
-    logger.info({ recipientCount: recipients.length }, 'Recipients found');
-
-    if (recipients.length === 0) {
-      const { payload } = Boom.notFound('No recipients found').output;
-      return res.status(payload.statusCode).json(payload);
-    }
-
-    const uniqueRecipients = Array.from(
-      new Map(recipients.map((r) => [r.phone, r])).values()
-    );
-
     const mediaJobData = mediaFile
       ? {
           buffer: mediaFile.buffer,
@@ -104,7 +47,43 @@ export const initiateBlast = async (req: Request, res: Response) => {
         }
       : undefined;
 
-    for (const recipient of uniqueRecipients) {
+    if (recipientsFile) {
+      const uploadsDir = path.join(__dirname, '..', '..', '..', 'uploads');
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, `${blastId}-${recipientsFile.originalname}`);
+      await fs.writeFile(filePath, recipientsFile.buffer);
+
+      await addFileProcessJob({
+        blastId,
+        sessionId,
+        message,
+        filePath,
+        campaignId,
+        media: mediaJobData,
+      });
+
+      logger.info(
+        {
+          blastId,
+          campaignId,
+          sessionId,
+          filePath,
+        },
+        'File processing job enqueued'
+      );
+      return res.status(202).json({
+        blastId,
+        message: 'Blast file has been enqueued for processing.',
+      });
+    }
+
+    // --- Handle campaign-only blasts ---
+    const recipients = await getRecipientsFromDB(campaignId);
+    if (recipients.length === 0) {
+      throw Boom.notFound('No recipients found for the given campaignId');
+    }
+
+    for (const recipient of recipients) {
       await addMessageJob({
         blastId,
         sessionId,
@@ -114,21 +93,21 @@ export const initiateBlast = async (req: Request, res: Response) => {
       });
     }
 
+    await redis.set(`blast:${blastId}:remaining`, recipients.length);
     logger.info(
       {
         blastId,
         campaignId,
         sessionId,
-        recipientCount: uniqueRecipients.length,
+        recipientCount: recipients.length,
       },
       'Blast enqueued'
     );
 
-    await redis.set(`blast:${blastId}:remaining`, uniqueRecipients.length);
     res.status(202).json({
       blastId,
       message: 'Blast has been enqueued.',
-      recipientCount: uniqueRecipients.length,
+      recipientCount: recipients.length,
     });
   } catch (error) {
     logger.error({ err: error }, 'Failed to initiate blast');

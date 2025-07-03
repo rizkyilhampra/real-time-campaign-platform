@@ -15,6 +15,25 @@ export interface MessageJobData {
   }
 }
 
+export interface FileProcessJobData {
+  blastId: string;
+  sessionId: string;
+  message: string;
+  filePath: string;
+  campaignId?: string;
+  media?: {
+    buffer: Buffer;
+    mimetype: string;
+    filename: string;
+  };
+}
+
+export interface SessionConfig {
+  id: string;
+  friendlyName: string;
+  businessUnit?: string;
+}
+
 export type SessionStatus =
   | 'CONNECTED'
   | 'DISCONNECTED'

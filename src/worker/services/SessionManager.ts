@@ -10,13 +10,30 @@ import * as fsSync from 'fs';
 import logger, { baileysLogger } from '../../shared/logger';
 import { redis, redisPublisher } from '../../shared/redis';
 import { SessionState, SessionStatus } from '../../shared/types';
+import * as sessionRepository from '../../shared/services/session.repository';
+
+const SESSIONS_DIR = path.join(__dirname, '..', '..', '..', 'sessions');
 
 type Session = WASocket & { id: string };
 
 class SessionManager {
   private sessions: Map<string, Session> = new Map();
 
-  constructor() {}
+  constructor() {
+    this.initializeSessions();
+  }
+
+  private async initializeSessions() {
+    try {
+      const sessionConfigs = await sessionRepository.getSessionConfigs();
+      logger.info({ count: sessionConfigs.length }, 'Initializing sessions from database');
+      for (const config of sessionConfigs) {
+        this.createSession(config.id, false);
+      }
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to initialize sessions from database');
+    }
+  }
 
   public async getSession(sessionId: string): Promise<Session | undefined> {
     return this.sessions.get(sessionId);
@@ -43,7 +60,7 @@ class SessionManager {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(
-      path.join(__dirname, '..', '..', '..', 'sessions', sessionId)
+      path.join(SESSIONS_DIR, sessionId)
     );
 
     const socket = makeWASocket({
@@ -73,9 +90,16 @@ class SessionManager {
       await session.logout();
       logger.info(`Logout command sent for session ${sessionId}, awaiting disconnection.`);
     } catch (err) {
-      if (!(err instanceof Error && err.message === 'Intentional Logout')) {
-        logger.error({ err }, `Failed to logout session ${sessionId}`);
+      // This is a workaround for a bug in Baileys that throws an error on logout
+      // We can safely ignore it.
+      if (
+        err instanceof Boom &&
+        err.output.statusCode === DisconnectReason.loggedOut
+      ) {
+        logger.info(`Session ${sessionId} logged out successfully.`);
+        return;
       }
+      logger.error({ err }, `Failed to logout session ${sessionId}`);
     }
   }
 
@@ -104,14 +128,7 @@ class SessionManager {
 
         if (statusCode === DisconnectReason.loggedOut) {
           logger.warn(`Session ${sessionId} logged out.`);
-          const sessionDir = path.join(
-            __dirname,
-            '..',
-            '..',
-            '..',
-            'sessions',
-            sessionId
-          );
+          const sessionDir = path.join(SESSIONS_DIR, sessionId);
           if (fsSync.existsSync(sessionDir)) {
             try {
               fsSync.rmSync(sessionDir, { recursive: true, force: true });

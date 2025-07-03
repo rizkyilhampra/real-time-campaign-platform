@@ -9,7 +9,6 @@ const config = {
     port: parseInt(process.env.REDIS_PORT || '6379', 10),
     password: process.env.REDIS_PASSWORD || undefined,
   },
-  sessionIds: process.env.SESSION_IDS?.split(',') || ['default'],
   db: {
     host: process.env.DB_HOST || '192.168.1.4',
     user: process.env.DB_USER || 'root',

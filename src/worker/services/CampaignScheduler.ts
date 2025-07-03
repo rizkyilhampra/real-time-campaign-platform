@@ -42,10 +42,16 @@ const fetchAndCachePicareRecipients = async (): Promise<void> => {
 };
 
 export const scheduleCampaignJobs = () => {
-  cron.schedule('0 2 * * *', () => {
-    logger.info('Running scheduled job: fetchAndCachePicareRecipients');
-    fetchAndCachePicareRecipients();
-  });
+  cron.schedule(
+    '0 2 * * *',
+    () => {
+      logger.info('Running scheduled job: fetchAndCachePicareRecipients');
+      fetchAndCachePicareRecipients();
+    },
+    {
+      timezone: 'Asia/Jakarta',
+    }
+  );
 
   logger.info('Running initial job: fetchAndCachePicareRecipients');
   fetchAndCachePicareRecipients();

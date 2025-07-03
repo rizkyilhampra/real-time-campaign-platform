@@ -1,19 +1,19 @@
 import { Request, Response } from 'express';
 import Boom from '@hapi/boom';
 import { redis, redisPublisher } from '../../shared/redis';
-import config from '../../shared/config';
 import { SessionState, SessionStatus } from '../../shared/types';
 import logger from '../../shared/logger';
+import * as sessionRepository from '../../shared/services/session.repository';
 
 export const getSessions = async (_req: Request, res: Response) => {
-  const sessionIds = config.sessionIds;
+  const configs = await sessionRepository.getSessionConfigs();
   const states: SessionState[] = [];
 
-  for (const id of sessionIds) {
+  for (const config of configs) {
     const status = (await redis.get(
-      `session:${id}:status`
+      `session:${config.id}:status`
     )) as SessionStatus | null;
-    states.push({ id, status: status || 'DISCONNECTED' });
+    states.push({ ...config, status: status || 'DISCONNECTED' });
   }
 
   res.json(states);
@@ -21,8 +21,9 @@ export const getSessions = async (_req: Request, res: Response) => {
 
 export const connectSession = async (req: Request, res: Response) => {
   const { sessionId } = req.params;
+  const session = await sessionRepository.getSessionConfig(sessionId);
 
-  if (!config.sessionIds.includes(sessionId)) {
+  if (!session) {
     const { payload } = Boom.notFound(
       `Session with ID '${sessionId}' is not configured.`
     ).output;
@@ -49,8 +50,9 @@ export const connectSession = async (req: Request, res: Response) => {
 
 export const logoutSession = async (req: Request, res: Response) => {
   const { sessionId } = req.params;
+  const session = await sessionRepository.getSessionConfig(sessionId);
 
-  if (!config.sessionIds.includes(sessionId)) {
+  if (!session) {
     const { payload } = Boom.notFound(
       `Session with ID '${sessionId}' is not configured.`
     ).output;
