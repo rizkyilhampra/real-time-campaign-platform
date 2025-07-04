@@ -7,6 +7,7 @@ import { Recipient } from '../../shared/types';
 
 const PICARE_CAMPAIGN_ID = 'picare';
 const PICARE_CACHE_KEY = `campaign:${PICARE_CAMPAIGN_ID}:recipients`;
+const timezone = process.env.TZ || 'Asia/Jakarta';
 
 const fetchAndCachePicareRecipients = async (): Promise<void> => {
   logger.info('Fetching picare recipients from the database...');
@@ -49,7 +50,7 @@ export const scheduleCampaignJobs = () => {
       fetchAndCachePicareRecipients();
     },
     {
-      timezone: 'Asia/Jakarta',
+      timezone: timezone,
     }
   );
 
