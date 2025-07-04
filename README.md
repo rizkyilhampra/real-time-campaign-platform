@@ -1,9 +1,10 @@
-# Real-Time Campaign Messaging Platform
+# Whatsapp Message Blaster - Backend
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Node.js](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![BullMQ](https://img.shields.io/badge/BullMQ-D82A2E?style=for-the-badge&logo=bull&logoColor=white)](https://bullmq.io/)
 
 A robust, scalable backend system designed to automate high-volume, targeted messaging campaigns via WhatsApp. This platform replaces manual processes with a reliable, containerized solution that provides real-time visibility into campaign execution and web-based session management.
 
@@ -11,14 +12,18 @@ A robust, scalable backend system designed to automate high-volume, targeted mes
 
 ## ✨ Features
 
--   **Automated Message Blasts:** Initiate large campaigns to pre-defined user segments with a single API call.
--   **Real-Time Progress Tracking:** Monitor campaign status (sent, failed, total) live via a WebSocket connection.
--   **Web-Based QR Authentication:** Manage WhatsApp account connections through a secure UI flow. No terminal access required for non-technical users. The backend relays QR codes directly to the frontend via WebSockets.
--   **Scalable & Resilient Architecture:** Built with a separate job queue and worker processes, allowing for horizontal scaling and reliable, retryable message sending.
--   **Multi-Session Support:** Manage multiple distinct WhatsApp accounts (e.g., for marketing, alerts) simultaneously.
--   **Interactive API Documentation:** Includes a built-in Swagger UI for easy API exploration and testing.
--   **Job Queue Monitoring:** A pre-configured Bull Board dashboard provides visibility into the message queue.
--   **Excel Recipient Import:** Quickly kick off blasts by uploading an Excel (.xlsx) file containing your own recipient list.
+-   **Automated Message Blasts:** Initiate large campaigns to pre-defined or uploaded recipient lists with a single API call.
+-   **Dynamic Session Management:**
+    -   Manage multiple WhatsApp accounts through a database and REST API.
+    -   Add, remove, or update sessions without requiring a code change or deployment.
+-   **Web-Based QR Authentication:** A secure UI flow for connecting WhatsApp accounts. The backend relays QR codes directly to authorized frontend clients via WebSockets.
+-   **Real-Time Progress Tracking:** Monitor campaign status (sent, failed, total) live via a secure, ticket-based WebSocket connection.
+-   **Scalable & Resilient Architecture:** Built with a separate job queue (`BullMQ`) and worker processes, allowing for horizontal scaling and reliable, retryable message sending.
+-   **Heavy Job Offloading:** File parsing and recipient processing are handled by background workers, ensuring the API remains fast and responsive at all times.
+-   **Excel Recipient Import:** Kick off blasts instantly by uploading an Excel (`.xlsx`) file containing a custom recipient list.
+-   **Built-in Observability:**
+    -   **Swagger UI:** Interactive API documentation for easy exploration and testing.
+    -   **Bull Board:** A pre-configured dashboard for monitoring the status of all message and processing jobs.
 
 ## 🏛️ System Architecture
 
@@ -27,65 +32,62 @@ The application is built as a single Node.js/TypeScript project but runs as two 
 -   **`API` Service:** An Express.js server responsible for:
     -   Handling all incoming HTTP REST API requests.
     -   Managing WebSocket connections for real-time client updates.
-    -   Enqueuing jobs into the Redis-backed message queue.
-    -   Relaying QR code and status events from the Worker to the frontend.
+    -   Validating requests and enqueuing jobs into the Redis-backed message queue.
     -   Serving the Swagger UI and Bull Board dashboard.
 
 -   **`Worker` Service:** A background process responsible for:
-    -   Consuming jobs from the message queue.
-    -   Managing multiple Baileys (WhatsApp) client instances.
-    -   Sending the actual WhatsApp messages.
+    -   Consuming jobs from the `file-process` and `message` queues.
+    -   Managing multiple Baileys (WhatsApp) client instances based on database configuration.
     -   Handling the entire WhatsApp connection lifecycle (generating QR codes, managing disconnections).
     -   Publishing status updates (progress, QR codes) to Redis for the API service to relay.
 
 -   **`Redis` Service:** Acts as the central nervous system, providing:
     -   A persistent job queue (via **BullMQ**).
     -   A Pub/Sub mechanism for inter-process communication between the `API` and `Worker`.
+    -   A cache for campaign recipient lists.
+
+-   **`SQLite` Database:** A file-based database (persisted via a Docker volume) used to dynamically store and manage session configurations (`sessions.sqlite`).
 
 ## ⚙️ Tech Stack
 
 -   **Backend:** Node.js, Express.js, TypeScript
 -   **WhatsApp Integration:** `@whiskeysockets/baileys`
 -   **Job Queue:** BullMQ
--   **Database/Cache:** Redis
+-   **Cache & Pub/Sub:** Redis
+-   **Session Configuration:** SQLite (`better-sqlite3`)
 -   **Real-time Communication:** WebSockets (`ws`)
 -   **File Uploads:** Multer
 -   **Excel Parsing:** XLSX (`sheetjs`)
 -   **Containerization:** Docker, Docker Compose
 -   **API Documentation:** Swagger (OpenAPI)
--   **Code Formatting:** Prettier
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 -   [Docker](https://www.docker.com/get-started/) and [Docker Compose](https://docs.docker.com/compose/install/)
--   [Node.js](https://nodejs.org/) and npm (for dependency installation)
+-   [Node.js](https://nodejs.org/) and npm (for local development and dependency installation)
 
 ### Installation & Setup
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
-    cd <your-repo-name>
+    git clone https://github.com/it-rspi/whatsapp-blaster-backend.git
+    cd whatsapp-blaster-backend
     ```
 
 2.  **Install local dependencies:**
-    *(This is primarily for IDE type-hinting and running local scripts like formatting.)*
+    *(This is primarily for IDE type-hinting and running local scripts.)*
     ```bash
     npm install
     ```
 
 3.  **Configure your environment:**
-    Copy the example environment file and customize it.
+    Copy the example environment file. You no longer need to define `SESSION_IDS` here, as sessions are managed via the API.
     ```bash
     cp .env.example .env
     ```
-    Open the `.env` file and edit the `SESSION_IDS` variable. This comma-separated list defines the unique identifiers for the WhatsApp accounts you want to manage.
-    ```env
-    # e.g., for a marketing and a support account
-    SESSION_IDS=marketing-promo,support-alerts
-    ```
+    Open `.env` to configure database credentials and Redis connection details if they differ from the Docker defaults.
 
 ### Running the Application
 
@@ -93,7 +95,7 @@ This project is configured with separate Docker Compose files for development an
 
 #### For Development (with Hot-Reloading)
 
-This mode uses `nodemon` and mounts your local `src` directory into the containers. Any code changes you make will be reflected instantly without needing to rebuild the image.
+This mode mounts your local `src` directory into the containers. Any code changes will be reflected instantly without rebuilding the image.
 
 ```bash
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -107,70 +109,60 @@ This mode builds a lean, optimized production image using a multi-stage `Dockerf
 docker-compose up --build -d
 ```
 
-Once the services are running, you can access the following:
+Once the services are running, you can access:
 -   **API Server:** `http://localhost:3000`
 -   **API Docs (Swagger):** `http://localhost:3000/api/docs`
 -   **Queue Dashboard (Bull Board):** `http://localhost:3000/admin/queues`
 
 ## 📖 API Usage & Flow
 
-### Session Management (QR Code Flow)
+### 1. Session Management
 
-To authenticate a new WhatsApp session (e.g., `marketing-promo`):
+First, create a session configuration. This tells the worker to start managing a new WhatsApp instance.
 
-1.  **Subscribe:** A frontend client connects to the WebSocket endpoint, providing the `sessionId` as a query parameter.
-    `ws://localhost:3000?sessionId=marketing-promo`
+`POST /api/sessions/config`
+Request Body:
+```json
+{
+  "id": "marketing-promo",
+  "friendlyName": "Q4 Marketing Promo",
+  "businessUnit": "Marketing"
+}
+```
 
-2.  **Command:** The frontend sends a `POST` request to the API to trigger the connection process.
-    `POST /api/sessions/marketing-promo/connect`
+### 2. QR Code Authentication Flow
 
-3.  **React:** The backend Worker process starts the authentication, generates a QR code, and publishes it. The API service relays this event over the WebSocket. The frontend listens for a `qr_update` event and renders the received QR code image.
+To authenticate the `marketing-promo` session:
 
-### Campaign Initiation
+1.  **Subscribe:** A frontend client connects to the general WebSocket endpoint to listen for status updates: `ws://localhost:3000`.
+2.  **Command:** The frontend sends a `POST` request to trigger the connection: `POST /api/sessions/marketing-promo/connect`.
+3.  **React:** The Worker process starts the authentication, generates a QR code, and publishes it to Redis. The API service relays this `qr:update` event over the WebSocket to the frontend, which then displays the QR code for scanning.
 
-1.  **Preview (Optional):**
-    `GET /api/campaigns/recipients?campaignId=october-promo`
+### 3. Campaign Initiation
 
-2.  **Initiate Blast:**
+1.  **Initiate Blast:**
     `POST /api/blasts`
-    Request Body:
-    ```json
-    {
-      "campaignId": "october-promo",
-      "sessionId": "marketing-promo",
-      "message": "Hello {name}, don't miss our amazing promo!"
-    }
-    ```
-    The API responds immediately with a `blastId`.
-
-    Alternatively, you can omit `campaignId` and upload an Excel file instead. The request must be sent as `multipart/form-data`:
+    The request must be `multipart/form-data`. Here is a `cURL` example:
 
     ```bash
     curl -X POST http://localhost:3000/api/blasts \
       -F "sessionId=marketing-promo" \
       -F "message=Hello {name}, don't miss our amazing promo!" \
-      -F "recipientsFile=@recipients.xlsx"
+      -F "recipientsFile=@path/to/recipients.xlsx" \
+      -F "media=@path/to/image.png"
     ```
+    The API responds immediately with a `blastId`.
 
-    The Excel sheet should contain at minimum a `phone` column and optionally a `name` column. If both `campaignId` and an Excel file are supplied, the recipients are merged and deduplicated by phone number.
-
-3.  **Monitor Progress:**
-    Connect to the WebSocket with the `blastId`:
-    `ws://localhost:3000?blastId=<your-blast-id>`
-    You will receive `blast_progress` events in real-time.
-
-## 🛠️ Project Scripts
-
--   `npm run format`: Automatically formats all `.ts` files in the `src` directory using Prettier.
--   `npm run format:check`: Checks if all files are correctly formatted. Ideal for CI/CD pipelines.
--   `npm run dev`: Runs both the `api` and `worker` services in development mode with `nodemon` (for local, non-Docker development).
--   `npm test`: Runs the automated test suite for the API controllers.
+2.  **Monitor Progress:**
+    -   The frontend first makes an authenticated request to `GET /api/ws-ticket?blastId=<your-blast-id>` to receive a short-lived, single-use ticket.
+    -   It then connects to the WebSocket with this ticket: `ws://localhost:3000?ticket=<your-ticket>`.
+    -   The client will now receive `blast:started` and `blast:progress` events in real-time for this specific blast.
 
 ## 🧪 Testing
 
-This project uses [Jest](https://jestjs.io/) for running tests and [Supertest](https://github.com/visionmedia/supertest) for testing HTTP endpoints. All external services, such as databases and Redis, are mocked, allowing tests to run in isolation without requiring active service connections.
+This project uses [Jest](https://jestjs.io/) and [Supertest](https://github.com/visionmedia/supertest) for testing API endpoints. External services like Redis are mocked, allowing tests to run in isolation.
 
-To run the entire test suite, execute the following command from the `backend` directory:
+To run the entire test suite:
 
 ```bash
 npm test
@@ -180,15 +172,16 @@ npm test
 
 ```
 .
+├── data/           # Persisted SQLite database files
+├── sessions/       # Persisted Baileys authentication files
+├── uploads/        # Temporary storage for uploaded recipient files
 ├── src
-│   ├── api         # Express server, controllers, routes, WebSocket manager
-│   ├── worker      # Background worker, Baileys session manager, job processor
-│   └── shared      # Code used by both API and Worker (configs, types, Redis, etc.)
-├── .env.example    # Environment variable template
-├── .prettierrc.json# Prettier formatting rules
-├── docker-compose.yml  # Production Docker configuration
-├── docker-compose.dev.yml # Development Docker overrides
-├── Dockerfile      # Multi-stage Dockerfile for optimized builds
+│   ├── api/        # Express server, controllers, routes, WebSocket manager
+│   ├── worker/     # Background worker, Bailey's session manager, job processors
+│   └── shared/     # Code used by both API & Worker (configs, types, Redis, etc.)
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
 └── package.json
 ```
 
