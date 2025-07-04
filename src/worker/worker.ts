@@ -60,6 +60,10 @@ const processMessageJob = async (job: { data: MessageJobData }) => {
   try {
     const jid = jidNormalizedUser(`${recipient.phone}@s.whatsapp.net`);
 
+    const randomDelay = Math.random() * 15000 + 15000; // 15-30 seconds
+    logger.info({ randomDelay }, 'Sleeping for random delay');
+    await new Promise((resolve) => setTimeout(resolve, randomDelay));
+
     if (media) {
       const mediaBuffer = Buffer.from(media.buffer);
       const { mimetype, filename } = media;
@@ -104,11 +108,7 @@ const worker = new Worker<MessageJobData>(
   processMessageJob,
   {
     connection: redis,
-    concurrency: 5,
-    limiter: {
-      max: 5,
-      duration: 1000,
-    },
+    concurrency: 1,
   }
 );
 
@@ -205,7 +205,7 @@ const processFileJob = async (job: { data: FileProcessJobData }) => {
       recipients.push(...campaignRecipients);
     }
 
-    // Deduplicate recipients, giving priority to the Excel file data.
+    //NOTE: Deduplicate recipients, giving priority to the Excel file data.
     const recipientMap = new Map<string, Recipient>();
     if (campaignId) {
       const campaignRecipients = await getRecipientsFromDB(campaignId);
@@ -256,7 +256,7 @@ const fileWorker = new Worker<FileProcessJobData>(
   processFileJob,
   {
     connection: redis,
-    concurrency: 5, // Lower concurrency for file processing
+    concurrency: 2,
   }
 );
 
