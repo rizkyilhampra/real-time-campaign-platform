@@ -177,60 +177,61 @@ router.post('/sessions/:sessionId/logout', logoutSession);
  * @openapi
  * /api/sessions/config:
  *   get:
- *     tags: [Session Configuration]
+ *     tags:
+ *       - Session Configuration
  *     summary: Get all session configurations
  *     responses:
  *       200:
- *         description: A list of session configurations.
+ *         description: A list of all session configurations.
  */
 router.get('/sessions/config', sessionConfigController.getSessions);
 
 /**
  * @openapi
  * /api/sessions/config:
- * post:
- * tags:
- * - Session Configuration
- * summary: Create a new session configuration
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * type: object
- * required:
- * - id
- * - friendlyName
- * properties:
- * id:
- * type: string
- * description: The unique identifier for the session.
- * example: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
- * friendlyName:
- * type: string
- * description: A user-friendly name for the session configuration.
- * example: "Q4 Marketing Campaign"
- * businessUnit:
- * type: string
- * description: The business unit associated with the session.
- * example: "Marketing"
- * responses:
- * '201':
- * description: The created session configuration.
- * content:
- * application/json:
- * schema:
- * type: object
- * properties:
- * id:
- * type: string
- * example: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
- * friendlyName:
- * type: string
- * example: "Q4 Marketing Campaign"
- * businessUnit:
- * type: string
- * example: "Marketing"
+ *   post:
+ *     tags:
+ *       - Session Configuration
+ *     summary: Create a new session configuration
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id
+ *               - friendlyName
+ *             properties:
+ *               id:
+ *                 type: string
+ *                 description: The unique identifier for the session.
+ *                 example: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
+ *               friendlyName:
+ *                 type: string
+ *                 description: A user-friendly name for the session configuration.
+ *                 example: "Q4 Marketing Campaign"
+ *               businessUnit:
+ *                 type: string
+ *                 description: The business unit associated with the session.
+ *                 example: "Marketing"
+ *     responses:
+ *       '201':
+ *         description: The created session configuration.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                   example: "a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8"
+ *                 friendlyName:
+ *                   type: string
+ *                   example: "Q4 Marketing Campaign"
+ *                 businessUnit:
+ *                   type: string
+ *                   example: "Marketing"
  */
 router.post('/sessions/config', sessionConfigController.createSession);
 
@@ -238,7 +239,8 @@ router.post('/sessions/config', sessionConfigController.createSession);
  * @openapi
  * /api/sessions/config/{id}:
  *   get:
- *     tags: [Session Configuration]
+ *     tags:
+ *       - Session Configuration
  *     summary: Get a session configuration by ID
  *     parameters:
  *       - in: path
@@ -248,7 +250,7 @@ router.post('/sessions/config', sessionConfigController.createSession);
  *           type: string
  *     responses:
  *       200:
- *         description: The session configuration.
+ *         description: The requested session configuration.
  */
 router.get('/sessions/config/:id', sessionConfigController.getSession);
 
@@ -256,7 +258,8 @@ router.get('/sessions/config/:id', sessionConfigController.getSession);
  * @openapi
  * /api/sessions/config/{id}:
  *   put:
- *     tags: [Session Configuration]
+ *     tags:
+ *       - Session Configuration
  *     summary: Update a session configuration
  *     parameters:
  *       - in: path
@@ -280,7 +283,8 @@ router.put('/sessions/config/:id', sessionConfigController.updateSession);
  * @openapi
  * /api/sessions/config/{id}:
  *   delete:
- *     tags: [Session Configuration]
+ *     tags:
+ *       - Session Configuration
  *     summary: Delete a session configuration
  *     parameters:
  *       - in: path
@@ -290,7 +294,7 @@ router.put('/sessions/config/:id', sessionConfigController.updateSession);
  *           type: string
  *     responses:
  *       204:
- *         description: The session configuration was deleted.
+ *         description: The session configuration was deleted successfully.
  */
 router.delete('/sessions/config/:id', sessionConfigController.deleteSession);
 
@@ -298,7 +302,8 @@ router.delete('/sessions/config/:id', sessionConfigController.deleteSession);
  * @openapi
  * /api/ws-ticket:
  *   get:
- *     tags: [WebSocket]
+ *     tags:
+ *       - WebSocket
  *     summary: Get a ticket for WebSocket authentication
  *     parameters:
  *       - in: query
@@ -308,7 +313,7 @@ router.delete('/sessions/config/:id', sessionConfigController.deleteSession);
  *           type: string
  *     responses:
  *       200:
- *         description: A WebSocket ticket.
+ *         description: A WebSocket ticket for authentication.
  */
 router.get('/ws-ticket', ticketController.generateTicket);
 
