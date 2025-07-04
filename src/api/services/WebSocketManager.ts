@@ -3,7 +3,6 @@ import { Server } from 'http';
 import { parse } from 'url';
 import logger from '../../shared/logger';
 import { redisSubscriber } from '../../shared/redis';
-import { IncomingMessage } from 'http';
 import { validateTicket } from './TicketManager';
 
 interface WebSocketWithId extends WebSocket {
@@ -68,8 +67,8 @@ export class WebSocketManager {
           id === 'progress'
             ? 'blast:progress'
             : id === 'completed'
-            ? 'blast:completed'
-            : 'blast:started';
+              ? 'blast:completed'
+              : 'blast:started';
         const payload = { event, payload: parsedMessage };
 
         this.wss.clients.forEach((client: WebSocket) => {
@@ -83,6 +82,11 @@ export class WebSocketManager {
         this.wss.clients.forEach((client: WebSocket) => {
           const clientWithId = client as WebSocketWithId;
           if (clientWithId.sessionId === parsedMessage.sessionId) {
+            clientWithId.send(JSON.stringify(payload));
+            return;
+          }
+
+          if (!clientWithId.blastId && !clientWithId.sessionId) {
             clientWithId.send(JSON.stringify(payload));
           }
         });
